@@ -92,7 +92,7 @@ namespace Microsoft.Internal.Common.Utils
             _childProc.StartInfo.Environment.Add("DOTNET_DiagnosticPorts", $"{diagnosticTransportName}");
             try
             {
-                if (printLaunchCommand)
+                if (!showChildIO && printLaunchCommand)
                 {
                     Console.WriteLine($"Launching: {_childProc.StartInfo.FileName} {_childProc.StartInfo.Arguments}");
                 }
@@ -162,6 +162,10 @@ namespace Microsoft.Internal.Common.Utils
 
         public async void Dispose()
         {
+            if (!string.IsNullOrEmpty(_port) && File.Exists(_port))
+            {
+                File.Delete(_port);
+            }
             ProcessLauncher.Launcher.Cleanup();
             if (_server != null)
             {
@@ -178,18 +182,7 @@ namespace Microsoft.Internal.Common.Utils
         private string _toolName;
         private int _timeoutInSec;
 
-        private string GetTransportName(string toolName)
-        {
-            string transportName = $"{toolName}-{Process.GetCurrentProcess().Id}-{DateTime.Now:yyyyMMdd_HHmmss}.socket";
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                return transportName;
-            }
-            else
-            {
-                return Path.Combine(Path.GetTempPath(), transportName);
-            }
-        }
+        private string GetTransportName(string toolName) => $"{toolName}-{Process.GetCurrentProcess().Id}-{DateTime.Now:yyyyMMdd_HHmmss}.socket";
 
         public DiagnosticsClientBuilder(string toolName, int timeoutInSec)
         {
@@ -252,8 +245,6 @@ namespace Microsoft.Internal.Common.Utils
                 }
                 catch (TaskCanceledException)
                 {
-                    //clean up the server
-                    await server.DisposeAsync();
                     if (!ct.IsCancellationRequested)
                     {
                         throw;
